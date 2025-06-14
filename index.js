@@ -30,8 +30,16 @@ async function run() {
     await client.connect();
 
     const marathonCollection=client.db('marathonCode').collection('marathonData')
-
     const upcomingMarathonCollection=client.db('marathonCode').collection('marathon2')
+
+    //main marathons Collectio--
+    const marathonsCollections=client.db('marathonCode').collection('marathons')
+
+    // applIcollection-----
+     const applyCollection =client.db('marathonCode').collection('apply')
+
+
+
 
 // Upcoming-marathon-collection  api-------
  app.get('/marathon2', async(req,res)=>{
@@ -51,11 +59,85 @@ async function run() {
 
   app.get('/marathonData/:id', async(req,res)=>{
    const id=req.params.id
-   const query= {_id: new ObjectId(id)}
+   const query= {_id: id}
    const result =await marathonCollection.findOne(query)
    res.send(result)
   })
 
+
+
+
+
+  //****/ marathons related api----------
+  app.get('/marathons', async(req,res)=>{
+    const cursor=marathonsCollections.find()
+    const result=await cursor.toArray()
+    res.send(result)
+  })
+
+  // app.get('/marathons', async(req,res)=>{
+  //    const _id=req.query.email
+
+  //    const query={
+  //       applicant : _id
+  //    }
+
+  //    const result=await marathonCollection.find(query)
+  //    res.send(result)
+  // })
+
+  app.post('/marathons', async(req,res)=>{
+    const marathon=req.body
+    const result=await marathonsCollections.insertOne(marathon)
+    res.send(result)
+  })
+
+  app.get('/marathons', async(req,res)=>{
+    const result=await marathonsCollections.find().toArray()
+    res.send(result)
+  })
+
+  app.get('/marathons/:id', async(req,res)=>{
+    const id=req.params.id
+     const query = { _id: new ObjectId(id) }
+    const result =await marathonsCollections.findOne(query)
+ 
+    if(result){
+       res.send(result)
+    }
+    else{
+       res.status(404).send({ message: "Marathon not found" });
+    }
+  })
+
+
+
+  // my apply api---
+  app.get('/marathons', async(req,res)=>{
+     const UserEmail =req.query.email
+
+     const query={'userEmail' : userEmail}
+
+     const result=await marathonsCollections.find(query).toArray()
+     res.send()
+  })
+
+  app.post('/apply', async(req,res)=>{
+    const registration=req.body
+    console.log(registration)
+    const result =await applyCollection.insertOne(registration)
+    res.send(result)
+  })
+
+  app.get('/apply', async(req,res)=>{
+    const email=req.query
+
+    const query={
+      applicantEmail : email
+    }
+    const result=await applyCollection.find(query).toArray()
+    res.send(result)    
+  })
 
 
 
