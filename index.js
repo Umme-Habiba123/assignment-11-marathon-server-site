@@ -102,26 +102,12 @@ async function run() {
   })
 
 
-
-
-
   //****/ marathons related api----------
   app.get('/marathons', async(req,res)=>{
     const cursor=marathonsCollections.find()
     const result=await cursor.toArray()
     res.send(result)
   })
-
-  // app.get('/marathons', async(req,res)=>{
-  //    const _id=req.query.email
-
-  //    const query={
-  //       applicant : _id
-  //    }
-
-  //    const result=await marathonCollection.find(query)
-  //    res.send(result)
-  // })
 
   app.post('/marathons', async(req,res)=>{
     const marathon=req.body
@@ -133,10 +119,10 @@ async function run() {
     const userEmail=req.body.email
     if(!userEmail){
         const query = { userEmail: userEmail }
-        const result=await marathonsCollections.find().toArray()
+        const result=await marathonsCollections.find(query).toArray()
     }
     else{
-        const result = await marathonsCollections.find().toArray();
+        const result = await marathonsCollections.find(query).toArray();
     }
     
      return res.send(result);
@@ -153,6 +139,18 @@ async function run() {
     else{
        res.status(404).send({ message: "Marathon not found" });
     }
+  })
+
+  app.patch('/marathons/increment/:id', async(req,res)=>{
+    const id =req.params.id
+    const filter={_id: new ObjectId(id)}
+
+    const updatedDoc={
+      $inc:{totalRegCount  : 1}
+    }
+    const result=await marathonsCollections.updateOne(filter, updatedDoc)
+
+    res.send(result)
   })
 
 
@@ -175,15 +173,23 @@ async function run() {
     res.send(result)
   })
 
-  app.get('/apply',verifyFirebaseToken,verifyTokenEmail, async(req,res)=>{
+
+  app.get('applyByEmail', async(req,res)=>{
     const email=req.query.email
+    const query= {email: email}
+  })
 
+  // verifyTokenEmail ------
 
+  app.get('/apply', async(req,res)=>{
+    const email=req.query.email
     const query={
-      applicantEmail : email
+      email : email
     }
      console.log(email)
+
     const result=await applyCollection.find(query).toArray()
+
     res.send(result)    
   })
 
