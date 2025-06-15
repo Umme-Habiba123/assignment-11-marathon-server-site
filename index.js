@@ -2,6 +2,8 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const express = require("express");
 const cors = require("cors");
 const app = express();
+const admin = require("firebase-admin");
+const serviceAccount = require("./firebase-admin-service-key.json");
 const port = process.env.PORT || 5000;
 require('dotenv').config()
 
@@ -23,6 +25,41 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
+
+
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+
+const verifyFirebaseToken=async(req,res,next)=>{
+  const authHeader=req.headers?.authorization
+  console.log(authHeader)
+
+  if(!authHeader || authHeader.startsWith('Bearer ')){
+    return res.send(401).send({message: 'unauthorized access'})
+  }
+  const token= authHeader.split(' ')[1]
+
+ try{
+ 
+    const decoded=await admin.auth().verifyIdToken(token)
+    req.decoded=decoded
+      next()
+ }
+ catch(error){
+    return res.send(401).send({message: 'unauthorized access'})
+ }
+
+}
+
+const verifyTokenEmail=(req,res,next)=>{
+   if(req.query.email !==req.decoded.email){
+    res.status(403).send({message: 'forbidden access'})
+   }
+   next()
+}
 
 async function run() {
   try {
@@ -93,8 +130,16 @@ async function run() {
   })
 
   app.get('/marathons', async(req,res)=>{
-    const result=await marathonsCollections.find().toArray()
-    res.send(result)
+    const userEmail=req.body.email
+    if(!userEmail){
+        const query = { userEmail: userEmail }
+        const result=await marathonsCollections.find().toArray()
+    }
+    else{
+        const result = await marathonsCollections.find().toArray();
+    }
+    
+     return res.send(result);
   })
 
   app.get('/marathons/:id', async(req,res)=>{
@@ -119,8 +164,9 @@ async function run() {
      const query={'userEmail' : userEmail}
 
      const result=await marathonsCollections.find(query).toArray()
-     res.send()
+     res.send(result)
   })
+
 
   app.post('/apply', async(req,res)=>{
     const registration=req.body
@@ -129,12 +175,14 @@ async function run() {
     res.send(result)
   })
 
-  app.get('/apply', async(req,res)=>{
-    const email=req.query
+  app.get('/apply',verifyFirebaseToken,verifyTokenEmail, async(req,res)=>{
+    const email=req.query.email
+
 
     const query={
       applicantEmail : email
     }
+     console.log(email)
     const result=await applyCollection.find(query).toArray()
     res.send(result)    
   })
