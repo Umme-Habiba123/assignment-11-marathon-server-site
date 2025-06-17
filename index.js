@@ -28,28 +28,31 @@ admin.initializeApp({
 
 const verifyFirebaseToken = async (req, res, next) => {
   const authHeader = req.headers?.authorization;
-  console.log(authHeader);
+  console.log({ authHeader });
 
-  if (!authHeader || authHeader.startsWith("Bearer ")) {
-    return res.send(401).send({ message: "unauthorized access" });
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).send({ message: "unauthorized access" });
   }
+
   const token = authHeader.split(" ")[1];
 
   try {
     const decoded = await admin.auth().verifyIdToken(token);
     req.decoded = decoded;
-    next();
+    next(); 
   } catch (error) {
-    return res.send(401).send({ message: "unauthorized access" });
+    console.error('Token verification failed:', error);
+    return res.status(401).send({ message: "unauthorized access" });
   }
 };
 
-const verifyTokenEmail = (req, res, next) => {
-  if (req.query.email !== req.decoded.email) {
-    res.status(403).send({ message: "forbidden access" });
-  }
-  next();
-};
+
+// const verifyTokenEmail = (req, res, next) => {
+//   if (req.query.email !== req.decoded.email) {
+//    return res.status(403).send({ message: "forbidden access" });
+//   }
+//   next();
+// };
 
 async function run() {
   try {
@@ -86,7 +89,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/marathonData/:id", async (req, res) => {
+    app.get("/marathonData/:id", verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       console.log(query)
@@ -109,21 +112,31 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/marathons", async (req, res) => {
+    app.get("/marathons",  async (req, res) => {
       const userEmail = req.body.email;
-      if (!userEmail) {
+      if(userEmail !== req.decoded.email){
+        return res.send(403).send({message: 'forbidden access'})
+      }  
         const query = { userEmail: userEmail };
         const result = await marathonsCollections.find(query).toArray();
-      } else {
-        const result = await marathonsCollections.find(query).toArray();
-      }
 
       return res.send(result);
     });
 
-    app.get("/marathons/:id", async (req, res) => {
+    // app.get("/marathons", async (req, res) => {
+    //   const UserEmail = req.query.email;
+
+    //   const query = { userEmail: userEmail };
+
+    //   const result = await marathonsCollections.find(query).toArray();
+    //   res.send(result);
+    // });
+
+    app.get("/marathons/:id",verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
+
       const query = { _id: new ObjectId(id) };
+      
       const result = await marathonsCollections.findOne(query);
      console.log(result)
       if (result) {
@@ -145,21 +158,17 @@ async function run() {
       res.send(result);
     });
 
-    // my apply api---
-    app.get("/marathons", async (req, res) => {
-      const UserEmail = req.query.email;
+ 
 
-      const query = { userEmail: userEmail };
-
-      const result = await marathonsCollections.find(query).toArray();
-      res.send(result);
-    });
+       // my apply api---
 
     app.post("/apply", async (req, res) => {
+
       const registration = req.body;
       console.log(registration);
       const result = await applyCollection.insertOne(registration);
       res.send(result);
+
     });
 
     // app.get("applyByEmail", async (req, res) => {
@@ -169,7 +178,7 @@ async function run() {
 
     // verifyTokenEmail ------
 
-    app.get("/apply", async (req, res) => {
+    app.get("/apply", verifyFirebaseToken, async (req, res) => {
       const email = req.query.email;
       const query = {
         applicantEmail: email,
