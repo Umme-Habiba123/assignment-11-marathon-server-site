@@ -199,6 +199,22 @@ async function run() {
       }
     });
 
+    // handle update....
+    app.put("/apply/:id", async(req,res)=>{
+      const id=req.params.id
+      const filter={_id: new ObjectId(id)}
+      const option={upsert: true}
+      // updated registration/ apply
+      const updatedApply=req.body
+      const updateDoc={
+        $set:updatedApply
+      }
+
+      const result=await applyCollection.updateOne(filter,updateDoc,option)
+
+      res.send(result)
+    })
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
