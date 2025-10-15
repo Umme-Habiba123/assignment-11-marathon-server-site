@@ -38,7 +38,9 @@ const verifyFirebaseToken = async (req, res, next) => {
 
   try {
     const decoded = await admin.auth().verifyIdToken(token);
-    req.decoded = decoded;
+    req.decoded = {
+      email : decoded.email
+    };
     next(); 
   } catch (error) {
     console.error('Token verification failed:', error);
@@ -46,13 +48,6 @@ const verifyFirebaseToken = async (req, res, next) => {
   }
 };
 
-
-// const verifyTokenEmail = (req, res, next) => {
-//   if (req.query.email !== req.decoded.email) {
-//    return res.status(403).send({ message: "forbidden access" });
-//   }
-//   next();
-// };
 
 async function run() {
   try {
@@ -86,6 +81,7 @@ async function run() {
     app.get("/marathonData", async (req, res) => {
       const cursor = marathonCollection.find().limit(6);
       const result = await cursor.toArray();
+      creatAt : new Date()
       res.send(result);
     });
 
@@ -100,43 +96,67 @@ async function run() {
     });
 
     //****/ marathons related api----------
-    app.get("/marathons", async (req, res) => {
-      const cursor = marathonsCollections.find();
-      const result = await cursor.toArray();
-      res.send(result);
+    app.get("/marathons",verifyFirebaseToken, async (req, res) => {
+      const { email, sort } = req.query;    
+      const sortOrder=sort === 'asc'? 1 : -1
+        const query = email ? { userEmail: email } : {};
+      try{
+         const cursor = marathonsCollections.find(query).sort({createAt : sortOrder})
+         const result =await cursor.toArray()
+         return res.send(result)
+      }catch(error){
+        console.error(error)
+      }
+      return res.status(500).send({message : 'Failed to fetch marathons'});
     });
 
-    app.post("/marathons", async (req, res) => {
-      const marathon = req.body;
-      const result = await marathonsCollections.insertOne(marathon);
-      res.send(result);
-    });
 
-    app.get("/marathons",  async (req, res) => {
-      const userEmail = req.body.email;
-      if(userEmail !== req.decoded.email){
-        return res.send(403).send({message: 'forbidden access'})
-      }  
-        const query = { userEmail: userEmail };
-        const result = await marathonsCollections.find(query).toArray();
+app.post('/marathons', async (req, res) => {
+  const marathon = req.body;
 
-      return res.send(result);
-    });
 
-    // app.get("/marathons", async (req, res) => {
-    //   const UserEmail = req.query.email;
+  marathon.userEmail = req.body.userEmail || "unknown@example.com";
+  marathon.createAt = new Date();
 
-    //   const query = { userEmail: userEmail };
+  try {
+    const result = await marathonsCollections.insertOne(marathon);
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Failed to add marathon" });
+  }
+});
 
-    //   const result = await marathonsCollections.find(query).toArray();
-    //   res.send(result);
-    // });
+app.get('/my-marathons', async (req, res) => {
+  const email = req.query.email;
+  if (!email) return res.status(400).json({ message: "Email is required" });
 
-    app.get("/marathons/:id",verifyFirebaseToken, async (req, res) => {
+  try {
+    const myMarathons = await marathonsCollections.find({ userEmail: email }).toArray();
+    res.json(myMarathons);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+// DELETE /marathons/:id
+app.delete('/marathons/:id', verifyFirebaseToken, async (req, res) => {
+  const id = req.params.id;
+  try {
+    const result = await marathonsCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Delete failed', error });
+  }
+});
+
+
+// GET /marathons/:id
+    app.get("/marathons/:id", async (req, res) => {
       const id = req.params.id;
 
       const query = { _id: new ObjectId(id) };
-      
+
       const result = await marathonsCollections.findOne(query);
      console.log(result)
       if (result) {
@@ -146,19 +166,109 @@ async function run() {
       }
     });
 
-    app.patch("/marathons/increment/:id", async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) };
 
-      const updatedDoc = {
-        $inc: { totalRegCount: 1 },
-      };
-      const result = await marathonsCollections.updateOne(filter, updatedDoc);
+    // GET /marathons?email=user@example.com
+app.get("/marathons", async (req, res) => {
+  const email = req.query.email;
+  if (!email) return res.status(400).json({ error: "Email is required" });
 
-      res.send(result);
-    });
+  try {
+    const marathons = await marathonsCollections
+      .find({ email: email })
+      .sort({ createdAt: -1 }) 
+      .toArray();
+    res.json(marathons);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch marathons" });
+  }
+});
 
- 
+
+// PATCH /marathons/:id
+app.patch("/marathons/:id", async (req, res) => {
+  const id = req.params.id;
+  const { marathonsTitle, location, runningDistance, marathonDate } = req.body;
+
+  if (!marathonsTitle || !location || !runningDistance || !marathonDate) {
+    return res.status(400).json({ error: "All fields are required" });
+  }
+
+  try {
+    const result = await marathonsCollections.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          marathonsTitle,
+          location,
+          runningDistance,
+          marathonDate: new Date(marathonDate),
+        },
+      }
+    );
+
+    if (result.modifiedCount === 1) {
+      res.json({ message: "Marathon updated successfully" });
+    } else {
+      res.status(404).json({ error: "Marathon not found" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to update marathon" });
+  }
+});
+
+
+// DELETE /marathons/:id
+app.delete("/marathons/:id", async (req, res) => {
+  const id = req.params.id;
+
+  try {
+    const result = await marathonsCollections.deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 1) {
+      res.json({ message: "Marathon deleted successfully" });
+    } else {
+      res.status(404).json({ error: "Marathon not found" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to delete marathon" });
+  }
+});
+
+
+  app.patch("/marathons/increment/:id", async (req, res) => {
+  const id = req.params.id;
+  const filter = { _id: new ObjectId(id) };
+
+  const updatedDoc = {
+    $inc: { totalRegCount: 1 }
+  };
+
+  try {
+    const result = await marathonsCollections.updateOne(filter, updatedDoc);
+    res.send(result);
+  } catch (error) {
+    console.error("Error incrementing registration count:", error);
+    res.status(500).send({ error: "Internal Server Error" });
+  }
+});
+
+
+app.patch("/marathons/:id", async (req, res) => {
+  const id = req.params.id;
+  const updatedData = req.body;
+
+  const result = await marathonsCollections.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: updatedData }
+  );
+
+  res.send(result);
+});
+
+
 
        // my apply api---
 
@@ -171,15 +281,12 @@ async function run() {
 
     });
 
-    // app.get("applyByEmail", async (req, res) => {
-    //   const email = req.query.email;
-    //   const query = { email: email };
-    // });
-
-    // verifyTokenEmail ------
-
+   
     app.get("/apply", verifyFirebaseToken, async (req, res) => {
       const email = req.query.email;
+      if(email !== req.decoded.email){
+        return res.status(403).send({ message: "forbidden access" });
+      }
       const query = {
         applicantEmail: email,
       };
