@@ -8,7 +8,12 @@ const port = process.env.PORT || 5000;
 require("dotenv").config();
 
 // middleware----
-app.use(cors());
+// app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173', // client url
+  methods: ['GET','POST','PATCH','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.jbcozto.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -110,6 +115,24 @@ async function run() {
       return res.status(500).send({message : 'Failed to fetch marathons'});
     });
 
+        // GET /marathons?email=user@example.com
+// app.get("/marathons", async (req, res) => {
+//   const email = req.query.email;
+//   if (!email) return res.status(400).json({ error: "Email is required" });
+
+//   try {
+//     const marathons = await marathonsCollections
+//       .find({ email: email })
+//       .sort({ createdAt: -1 }) 
+//       .toArray();
+//     res.json(marathons);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ error: "Failed to fetch marathons" });
+//   }
+// })  ;
+
+
 
 app.post('/marathons', async (req, res) => {
   const marathon = req.body;
@@ -126,17 +149,47 @@ app.post('/marathons', async (req, res) => {
   }
 });
 
-app.get('/my-marathons', async (req, res) => {
+// app.get('/my-marathons', async (req, res) => {
+//   const email = req.query.email;
+//   if (!email) return res.status(400).json({ message: "Email is required" });
+
+//   try {
+//     const myMarathons = await marathonsCollections.find({ userEmail: email }).toArray();
+//     res.json(myMarathons);
+//   } catch (err) {
+//     res.status(500).json({ message: "Server error" });
+//   }
+// });
+
+
+app.get("/my-marathons", verifyFirebaseToken, async (req, res) => {
   const email = req.query.email;
-  if (!email) return res.status(400).json({ message: "Email is required" });
+  if(email !== req.decoded.email){
+    return res.status(403).send({ message: "Forbidden access" });
+  }
+  const myMarathons = await marathonsCollections.find({ userEmail: email }).toArray();
+  res.json(myMarathons);
+});
+
+app.get("/marathons", verifyFirebaseToken, async (req, res) => {
+  const email = req.query.email;
+  if(email !== req.decoded.email){
+    return res.status(403).send({ message: "forbidden access" });
+  }
 
   try {
-    const myMarathons = await marathonsCollections.find({ userEmail: email }).toArray();
-    res.json(myMarathons);
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    const marathons = await marathonsCollections
+      .find({ userEmail: email })
+      .sort({ createAt: -1 })
+      .toArray();
+    res.json(marathons);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch marathons" });
   }
 });
+
+
 
 
 // DELETE /marathons/:id
@@ -167,22 +220,6 @@ app.delete('/marathons/:id', verifyFirebaseToken, async (req, res) => {
     });
 
 
-    // GET /marathons?email=user@example.com
-app.get("/marathons", async (req, res) => {
-  const email = req.query.email;
-  if (!email) return res.status(400).json({ error: "Email is required" });
-
-  try {
-    const marathons = await marathonsCollections
-      .find({ email: email })
-      .sort({ createdAt: -1 }) 
-      .toArray();
-    res.json(marathons);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to fetch marathons" });
-  }
-})  ;
 
 
 // PATCH /marathons/:id
@@ -267,8 +304,6 @@ app.patch("/marathons/:id", async (req, res) => {
 
   res.send(result);
 });
-
-
 
        // my apply api---
 
