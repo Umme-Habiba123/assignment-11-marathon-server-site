@@ -1,6 +1,6 @@
 # 🏁 RaceClock Backend
 
-**Live API Base URL:** https://your-backend-api.onrender.com  
+**Live API Base URL:** 
 **Repository (Server):** https://github.com/Umme-Habiba123/assignment-11-marathon-server-site
 
 ---
